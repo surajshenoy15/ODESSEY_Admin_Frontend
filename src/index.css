@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;color-scheme:light;--admin-navy:#041c35;--admin-blue:#08284c;--admin-orange:#f15a29;--admin-cream:#f5f1e9;--admin-paper:#fffdf8}
+html{scroll-behavior:smooth}body{margin:0;min-width:320px;min-height:100vh;background:var(--admin-cream);color:#0f2740}body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(8,40,76,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(8,40,76,.025) 1px,transparent 1px);background-size:38px 38px;mask-image:linear-gradient(to bottom,black,transparent 78%)}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}:focus-visible{outline:3px solid rgba(241,90,41,.25);outline-offset:2px}::selection{background:#ffdfd0;color:#041c35}
+
+@layer components{
+  .surface{@apply rounded-[22px] border border-brand-900/10 bg-paper shadow-soft;}
+  .field-label{@apply mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-brand-800;}
+  .field-control{@apply w-full rounded-xl border border-brand-900/15 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-brand-700/30 focus:border-accent-500 focus:outline-none focus:ring-4 focus:ring-accent-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;}
+  .helper-text{@apply mt-1.5 text-xs leading-5 text-slate-500;}
+  .table-shell{@apply overflow-hidden rounded-[22px] border border-brand-900/10 bg-paper shadow-soft;}
+  .table-cell{@apply px-4 py-3.5 text-sm text-slate-700;}
+  .section-title{@apply font-display text-lg font-black tracking-[-0.02em] text-brand-950;}
+  .section-copy{@apply mt-1 text-sm leading-6 text-slate-500;}
+}
+
+.admin-grid-bg{background:radial-gradient(circle at 100% 0,rgba(241,90,41,.07),transparent 24%),var(--admin-cream)}
+.admin-table thead{background:rgba(238,243,247,.7)}.admin-table tbody tr{transition:background .2s ease}.admin-table tbody tr:hover{background:rgba(245,241,233,.7)}
+.admin-scrollbar{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}.admin-scrollbar::-webkit-scrollbar{width:8px}.admin-scrollbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px}
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

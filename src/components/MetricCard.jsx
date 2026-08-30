@@ -1,0 +1,7 @@
+import { ArrowUpRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Card } from './ui'
+import { cn } from '../utils/format'
+
+const tones={blue:'bg-brand-50 text-brand-800',green:'bg-emerald-50 text-emerald-700',amber:'bg-amber-50 text-amber-700',red:'bg-red-50 text-red-700',violet:'bg-violet-50 text-violet-700',slate:'bg-slate-100 text-slate-700'}
+export function MetricCard({label,value,icon:Icon,tone='blue',helper,to}){return <Card className="group relative overflow-hidden p-5 transition duration-300 hover:-translate-y-1 hover:border-accent-500/20 hover:shadow-lift"><span className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-brand-50/80 transition duration-500 group-hover:scale-125"/><div className="relative flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.06em] text-slate-500">{label}</p><p className="mt-2 font-display text-3xl font-black tracking-[-.045em] text-brand-950">{value??'—'}</p></div><div className={cn('rounded-2xl p-3 shadow-sm',tones[tone])}><Icon className="h-5 w-5"/></div></div><div className="relative mt-4 flex items-end justify-between gap-3"><p className="text-xs leading-5 text-slate-500">{helper}</p>{to?<Link to={to} className="inline-flex shrink-0 items-center gap-1 text-[11px] font-extrabold uppercase tracking-wide text-accent-600 hover:text-accent-700">View <ArrowUpRight className="h-3.5 w-3.5"/></Link>:null}</div></Card>}
