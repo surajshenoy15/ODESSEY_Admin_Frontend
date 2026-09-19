@@ -1,47 +1,1591 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BadgeCheck, Download, ExternalLink, FileCheck2, RefreshCw, RotateCcw, UserRound, XCircle } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
-import { apiGet, apiPost, downloadFile } from '../api/client'
-import { StatusBadge } from '../components/StatusBadge'
-import { Button, Card, ErrorState, LoadingState, Modal, PageHeader, Textarea } from '../components/ui'
-import { useToast } from '../context/ToastContext'
-import { formatCurrency, formatDateTime, humanize } from '../utils/format'
 
-const correctionOptions = ['college_name','college_location','team_name','coach_name','ped_contact','student_coordinator_name','student_coordinator_contact','students','student_photos','bonafide','declaration']
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Download,
+  ExternalLink,
+  FileCheck2,
+  Mail,
+  Phone,
+  RefreshCw,
+  RotateCcw,
+  UserRound,
+  UsersRound,
+  XCircle,
+} from 'lucide-react'
+
+import {
+  Link,
+  useParams,
+} from 'react-router-dom'
+
+import {
+  apiGet,
+  apiPost,
+  downloadFile,
+} from '../api/client'
+
+import { StatusBadge } from '../components/StatusBadge'
+
+import {
+  Button,
+  Card,
+  ErrorState,
+  LoadingState,
+  Modal,
+  PageHeader,
+  Textarea,
+} from '../components/ui'
+
+import { useToast } from '../context/ToastContext'
+
+import {
+  formatCurrency,
+  formatDateTime,
+  humanize,
+} from '../utils/format'
+
+
+// ============================================================
+// CORRECTION FIELDS
+// ============================================================
+
+const correctionOptions = [
+  'college_name',
+  'college_location',
+  'team_name',
+  'coach_name',
+  'ped_contact',
+  'student_coordinator_name',
+  'student_coordinator_contact',
+  'students',
+  'student_photos',
+  'bonafide',
+  'declaration',
+]
+
+
+// ============================================================
+// CONTACT CARD
+// ============================================================
+
+function CoordinatorCard({
+  role,
+  name,
+  email,
+  contact,
+  optional = false,
+}) {
+  const exists =
+    name ||
+    email ||
+    contact
+
+  return (
+    <div className="
+      rounded-2xl
+      border
+      border-slate-200
+      bg-slate-50
+      p-4
+    ">
+
+      <div className="
+        mb-3
+        flex
+        items-center
+        justify-between
+        gap-3
+      ">
+
+        <div className="
+          flex
+          items-center
+          gap-2
+        ">
+
+          <div className="
+            grid
+            h-9
+            w-9
+            place-items-center
+            rounded-xl
+            bg-white
+            text-brand-700
+            shadow-sm
+          ">
+            <UserRound
+              className="h-4 w-4"
+            />
+          </div>
+
+
+          <div>
+
+            <p className="
+              text-xs
+              font-extrabold
+              uppercase
+              tracking-[0.1em]
+              text-brand-700
+            ">
+              {role}
+            </p>
+
+            {optional ? (
+              <p className="
+                text-[10px]
+                font-semibold
+                text-slate-400
+              ">
+                Optional contact
+              </p>
+            ) : null}
+
+          </div>
+
+        </div>
+
+
+        {exists ? (
+
+          <span className="
+            rounded-full
+            bg-emerald-50
+            px-2.5
+            py-1
+            text-[10px]
+            font-extrabold
+            uppercase
+            tracking-wide
+            text-emerald-700
+          ">
+            Registered
+          </span>
+
+        ) : (
+
+          <span className="
+            rounded-full
+            bg-slate-200
+            px-2.5
+            py-1
+            text-[10px]
+            font-extrabold
+            uppercase
+            tracking-wide
+            text-slate-500
+          ">
+            Not Added
+          </span>
+
+        )}
+
+      </div>
+
+
+      {exists ? (
+
+        <div className="space-y-2">
+
+          <p className="
+            text-sm
+            font-extrabold
+            text-slate-950
+          ">
+            {name || 'Name not provided'}
+          </p>
+
+
+          <div className="
+            flex
+            items-start
+            gap-2
+            text-xs
+            text-slate-600
+          ">
+
+            <Mail className="
+              mt-0.5
+              h-3.5
+              w-3.5
+              shrink-0
+              text-slate-400
+            " />
+
+            <span className="break-all">
+              {email || 'Email not provided'}
+            </span>
+
+          </div>
+
+
+          <div className="
+            flex
+            items-center
+            gap-2
+            text-xs
+            text-slate-600
+          ">
+
+            <Phone className="
+              h-3.5
+              w-3.5
+              shrink-0
+              text-slate-400
+            " />
+
+            <span>
+              {contact || 'Contact not provided'}
+            </span>
+
+          </div>
+
+        </div>
+
+      ) : (
+
+        <p className="
+          text-xs
+          leading-5
+          text-slate-400
+        ">
+          No {role.toLowerCase()} details were added during registration.
+        </p>
+
+      )}
+
+    </div>
+  )
+}
+
+
+// ============================================================
+// REGISTRATION DETAIL PAGE
+// ============================================================
 
 export default function RegistrationDetailPage() {
-  const { registrationId } = useParams(); const { notify } = useToast()
-  const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [dialog, setDialog] = useState(null); const [reason, setReason] = useState(''); const [fields, setFields] = useState([]); const [saving, setSaving] = useState(false)
-  async function load() { setLoading(true); setError(''); try { setData(await apiGet(`/admin/registrations/${registrationId}`)) } catch (err) { setError(err.message) } finally { setLoading(false) } }
-  useEffect(() => { load() }, [registrationId])
-  function open(action) { setReason(''); setFields([]); setDialog(action) }
-  async function submitAction() {
-    if (['REQUEST_CORRECTION','REJECT'].includes(dialog) && !reason.trim()) { notify('Enter a clear reason.', 'warning'); return }
-    if (dialog === 'REQUEST_CORRECTION' && fields.length === 0) { notify('Select at least one correction field.', 'warning'); return }
-    setSaving(true); try { const result = await apiPost(`/admin/registrations/${registrationId}/review`, { action: dialog, reason: reason.trim() || null, correction_fields: ['REQUEST_CORRECTION','REOPEN'].includes(dialog) ? fields : null }); notify(result.message, 'success'); setDialog(null); await load() } catch (err) { notify(err.message, 'error') } finally { setSaving(false) }
+  const {
+    registrationId,
+  } = useParams()
+
+  const {
+    notify,
+  } = useToast()
+
+
+  const [
+    data,
+    setData,
+  ] = useState(null)
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true)
+
+  const [
+    error,
+    setError,
+  ] = useState('')
+
+  const [
+    dialog,
+    setDialog,
+  ] = useState(null)
+
+  const [
+    reason,
+    setReason,
+  ] = useState('')
+
+  const [
+    fields,
+    setFields,
+  ] = useState([])
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false)
+
+
+  // ==========================================================
+  // LOAD
+  // ==========================================================
+
+  async function load() {
+    setLoading(true)
+    setError('')
+
+    try {
+      setData(
+        await apiGet(
+          `/admin/registrations/${registrationId}`
+        )
+      )
+
+    } catch (err) {
+      setError(
+        err.message
+      )
+
+    } finally {
+      setLoading(false)
+    }
   }
-  if (loading) return <LoadingState label="Loading registration review" />
-  if (error) return <ErrorState message={error} onRetry={load} />
-  const canApprove = data.status === 'UNDER_REVIEW' && data.payment_status === 'PAID'
 
-  return <div className="space-y-6">
-    <Link to="/registrations" className="inline-flex items-center gap-2 text-sm font-bold text-brand-700 hover:text-brand-900"><ArrowLeft className="h-4 w-4" />Back to registrations</Link>
-    <PageHeader eyebrow="Registration review" title={data.registration_code} description={`${data.college_name} · ${data.event.event_type} · ${data.event.sport_name} · ${data.event.category}`} actions={<><Button variant="secondary" icon={RefreshCw} onClick={load}>Refresh</Button>{data.status === 'APPROVED' ? <Button variant="secondary" icon={Download} onClick={() => downloadFile(`/admin/registrations/${data.id}/qr.png`, `${data.registration_code}-QR.png`)}>Download QR</Button> : null}</>} />
 
-    <Card className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="section-title">Registration summary</h2><p className="section-copy">Payment, PED identity and team contact details.</p></div><div className="flex gap-2"><StatusBadge status={data.payment_status} /><StatusBadge status={data.status} /></div></div><dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['College',data.college_name],['PED',data.ped.name || 'Not provided'],['PED email',data.ped.email],['PED contact',data.ped.contact],['Captain / coordinator',data.student_coordinator_name || 'Not provided'],['Coordinator phone',data.student_coordinator_contact],['Fee',formatCurrency(data.fee_paise)],['Students',data.students.length]].map(([label,value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</dd></div>)}</dl></Card>
+  useEffect(() => {
+    load()
+  }, [
+    registrationId,
+  ])
 
-    <div className="grid gap-5 xl:grid-cols-2 xl:items-start">
-      <Card className="overflow-hidden xl:sticky xl:top-24"><div className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="section-title">Principal-signed bonafide</h2><p className="section-copy">Left-side document view for direct comparison with the roster.</p></div>{data.bonafide_url ? <a href={data.bonafide_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-bold text-brand-700">Open <ExternalLink className="h-4 w-4" /></a> : null}</div>{data.bonafide_url ? <iframe title="Principal approved bonafide" src={data.bonafide_url} className="h-[720px] w-full bg-slate-100" /> : <div className="grid h-[420px] place-items-center bg-red-50 p-8 text-center text-red-800"><div><FileCheck2 className="mx-auto h-9 w-9" /><p className="mt-3 font-bold">Bonafide document missing</p></div></div>}</Card>
 
-      <Card className="overflow-hidden"><div className="border-b border-slate-200 px-5 py-4"><h2 className="section-title">Student list with passport photos</h2><p className="section-copy">Right-side roster view. Compare every name in the bonafide with the uploaded student record.</p></div><div className="divide-y divide-slate-100">{data.students.map((student,index) => <article key={student.id} className="grid gap-4 p-4 sm:grid-cols-[88px_1fr_auto] sm:items-center"><div className="relative">{student.photo_url ? <img src={student.photo_url} alt={`${student.full_name} profile`} className="h-24 w-24 rounded-2xl border border-slate-200 object-cover" /> : <div className="grid h-24 w-24 place-items-center rounded-2xl bg-slate-100 text-slate-400"><UserRound className="h-7 w-7" /></div>}<span className="absolute -left-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-brand-950 text-[10px] font-bold text-white">{index+1}</span></div><div className="min-w-0"><p className="font-bold text-slate-950">{student.full_name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{student.usn} · Semester {student.semester}</p><p className="mt-1 break-all text-xs text-slate-500">{student.email}</p><p className="mt-1 text-xs text-slate-500">{student.contact_number}</p></div><StatusBadge status={student.attendance_status} /></article>)}</div></Card>
+  // ==========================================================
+  // OPEN REVIEW DIALOG
+  // ==========================================================
+
+  function open(action) {
+    setReason('')
+    setFields([])
+    setDialog(action)
+  }
+
+
+  // ==========================================================
+  // SUBMIT REVIEW ACTION
+  // ==========================================================
+
+  async function submitAction() {
+    if (
+      [
+        'REQUEST_CORRECTION',
+        'REJECT',
+      ].includes(
+        dialog
+      ) &&
+      !reason.trim()
+    ) {
+      notify(
+        'Enter a clear reason.',
+        'warning'
+      )
+
+      return
+    }
+
+
+    if (
+      dialog ===
+        'REQUEST_CORRECTION' &&
+      fields.length ===
+        0
+    ) {
+      notify(
+        'Select at least one correction field.',
+        'warning'
+      )
+
+      return
+    }
+
+
+    setSaving(
+      true
+    )
+
+
+    try {
+      const result =
+        await apiPost(
+          `/admin/registrations/${registrationId}/review`,
+          {
+            action:
+              dialog,
+
+            reason:
+              reason.trim() ||
+              null,
+
+            correction_fields:
+              [
+                'REQUEST_CORRECTION',
+                'REOPEN',
+              ].includes(
+                dialog
+              )
+                ? fields
+                : null,
+          }
+        )
+
+
+      notify(
+        result.message,
+        'success'
+      )
+
+
+      setDialog(
+        null
+      )
+
+
+      await load()
+
+    } catch (err) {
+      notify(
+        err.message,
+        'error'
+      )
+
+    } finally {
+      setSaving(
+        false
+      )
+    }
+  }
+
+
+  // ==========================================================
+  // LOADING / ERROR
+  // ==========================================================
+
+  if (loading) {
+    return (
+      <LoadingState
+        label="Loading registration review"
+      />
+    )
+  }
+
+
+  if (error) {
+    return (
+      <ErrorState
+        message={error}
+        onRetry={load}
+      />
+    )
+  }
+
+
+  const canApprove =
+    data.status ===
+      'UNDER_REVIEW' &&
+    data.payment_status ===
+      'PAID'
+
+
+  // ==========================================================
+  // UI
+  // ==========================================================
+
+  return (
+    <div className="space-y-6">
+
+
+      {/* =====================================================
+          BACK
+      ====================================================== */}
+
+      <Link
+        to="/registrations"
+        className="
+          inline-flex
+          items-center
+          gap-2
+          text-sm
+          font-bold
+          text-brand-700
+
+          hover:text-brand-900
+        "
+      >
+
+        <ArrowLeft className="h-4 w-4" />
+
+        Back to registrations
+
+      </Link>
+
+
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
+
+      <PageHeader
+        eyebrow="Registration review"
+        title={
+          data.registration_code
+        }
+        description={
+          `${data.college_name} · ${data.event.event_type} · ${data.event.sport_name} · ${data.event.category}`
+        }
+        actions={
+          <>
+
+            <Button
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={load}
+            >
+              Refresh
+            </Button>
+
+
+            {data.status ===
+            'APPROVED' ? (
+
+              <Button
+                variant="secondary"
+                icon={Download}
+                onClick={() =>
+                  downloadFile(
+                    `/admin/registrations/${data.id}/qr.png`,
+
+                    `${data.registration_code}-QR.png`
+                  )
+                }
+              >
+                Download QR
+              </Button>
+
+            ) : null}
+
+          </>
+        }
+      />
+
+
+      {/* =====================================================
+          REGISTRATION SUMMARY
+      ====================================================== */}
+
+      <Card className="p-5">
+
+        <div className="
+          flex
+          flex-wrap
+          items-start
+          justify-between
+          gap-4
+        ">
+
+          <div>
+
+            <h2 className="section-title">
+              Registration summary
+            </h2>
+
+
+            <p className="section-copy">
+              College, event, payment and team details.
+            </p>
+
+          </div>
+
+
+          <div className="flex gap-2">
+
+            <StatusBadge
+              status={
+                data.payment_status
+              }
+            />
+
+            <StatusBadge
+              status={
+                data.status
+              }
+            />
+
+          </div>
+
+        </div>
+
+
+        <dl className="
+          mt-5
+          grid
+          gap-3
+
+          sm:grid-cols-2
+          lg:grid-cols-4
+        ">
+
+          {[
+            [
+              'College',
+              data.college_name,
+            ],
+
+            [
+              'Location',
+              data.college_location ||
+              'Not provided',
+            ],
+
+            [
+              'Team name',
+              data.team_name ||
+              'Not provided',
+            ],
+
+            [
+              'Captain / coordinator',
+              data.student_coordinator_name ||
+              'Not provided',
+            ],
+
+            [
+              'Coordinator phone',
+              data.student_coordinator_contact ||
+              'Not provided',
+            ],
+
+            [
+              'Fee',
+              formatCurrency(
+                data.fee_paise
+              ),
+            ],
+
+            [
+              'Students',
+              data.students.length,
+            ],
+
+            [
+              'Event',
+              `${data.event.sport_name} · ${data.event.category}`,
+            ],
+
+          ].map(
+            (
+              [
+                label,
+                value,
+              ]
+            ) => (
+
+              <div
+                key={label}
+                className="
+                  rounded-xl
+                  bg-slate-50
+                  p-3
+                "
+              >
+
+                <dt className="
+                  text-xs
+                  font-bold
+                  uppercase
+                  tracking-wide
+                  text-slate-400
+                ">
+                  {label}
+                </dt>
+
+
+                <dd className="
+                  mt-1
+                  break-words
+                  text-sm
+                  font-semibold
+                  text-slate-900
+                ">
+                  {value}
+                </dd>
+
+              </div>
+
+            )
+          )}
+
+        </dl>
+
+      </Card>
+
+
+      {/* =====================================================
+          AUTHORISED COORDINATORS
+      ====================================================== */}
+
+      <Card className="p-5">
+
+        <div className="
+          mb-5
+          flex
+          items-start
+          gap-3
+        ">
+
+          <div className="
+            grid
+            h-10
+            w-10
+            shrink-0
+            place-items-center
+            rounded-xl
+            bg-brand-50
+            text-brand-700
+          ">
+
+            <UsersRound
+              className="h-5 w-5"
+            />
+
+          </div>
+
+
+          <div>
+
+            <h2 className="section-title">
+              Authorised Coordinators
+            </h2>
+
+
+            <p className="section-copy">
+              PED is the primary account. Registered Coach and
+              Manager can use their own email and OTP to access
+              the same Coordinator Portal.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div className="
+          grid
+          gap-4
+
+          md:grid-cols-3
+        ">
+
+          {/* PED */}
+
+          <CoordinatorCard
+            role="PED"
+            name={
+              data.ped?.name
+            }
+            email={
+              data.ped?.email
+            }
+            contact={
+              data.ped?.contact
+            }
+          />
+
+
+          {/* COACH */}
+
+          <CoordinatorCard
+            role="Coach"
+            name={
+              data.ped
+                ?.coach_name
+            }
+            email={
+              data.ped
+                ?.coach_email
+            }
+            contact={
+              data.ped
+                ?.coach_contact
+            }
+            optional
+          />
+
+
+          {/* MANAGER */}
+
+          <CoordinatorCard
+            role="Manager"
+            name={
+              data.ped
+                ?.manager_name
+            }
+            email={
+              data.ped
+                ?.manager_email
+            }
+            contact={
+              data.ped
+                ?.manager_contact
+            }
+            optional
+          />
+
+        </div>
+
+      </Card>
+
+
+      {/* =====================================================
+          BONAFIDE + STUDENTS
+      ====================================================== */}
+
+      <div className="
+        grid
+        gap-5
+
+        xl:grid-cols-2
+        xl:items-start
+      ">
+
+
+        {/* ===================================================
+            BONAFIDE
+        ==================================================== */}
+
+        <Card className="
+          overflow-hidden
+
+          xl:sticky
+          xl:top-24
+        ">
+
+          <div className="
+            flex
+            items-center
+            justify-between
+            border-b
+            border-slate-200
+            px-5
+            py-4
+          ">
+
+            <div>
+
+              <h2 className="section-title">
+                Principal-signed bonafide
+              </h2>
+
+
+              <p className="section-copy">
+                Left-side document view for direct comparison
+                with the roster.
+              </p>
+
+            </div>
+
+
+            {data.bonafide_url ? (
+
+              <a
+                href={
+                  data.bonafide_url
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="
+                  inline-flex
+                  items-center
+                  gap-2
+                  text-xs
+                  font-bold
+                  text-brand-700
+                "
+              >
+                Open
+
+                <ExternalLink className="h-4 w-4" />
+
+              </a>
+
+            ) : null}
+
+          </div>
+
+
+          {data.bonafide_url ? (
+
+            <iframe
+              title="Principal approved bonafide"
+              src={
+                data.bonafide_url
+              }
+              className="
+                h-[720px]
+                w-full
+                bg-slate-100
+              "
+            />
+
+          ) : (
+
+            <div className="
+              grid
+              h-[420px]
+              place-items-center
+              bg-red-50
+              p-8
+              text-center
+              text-red-800
+            ">
+
+              <div>
+
+                <FileCheck2 className="
+                  mx-auto
+                  h-9
+                  w-9
+                " />
+
+
+                <p className="
+                  mt-3
+                  font-bold
+                ">
+                  Bonafide document missing
+                </p>
+
+              </div>
+
+            </div>
+
+          )}
+
+        </Card>
+
+
+        {/* ===================================================
+            STUDENTS
+        ==================================================== */}
+
+        <Card className="overflow-hidden">
+
+          <div className="
+            border-b
+            border-slate-200
+            px-5
+            py-4
+          ">
+
+            <h2 className="section-title">
+              Student list with passport photos
+            </h2>
+
+
+            <p className="section-copy">
+              Compare every name in the bonafide with the
+              uploaded student record.
+            </p>
+
+          </div>
+
+
+          <div className="
+            divide-y
+            divide-slate-100
+          ">
+
+            {data.students.map(
+              (
+                student,
+                index
+              ) => (
+
+                <article
+                  key={
+                    student.id
+                  }
+                  className="
+                    grid
+                    gap-4
+                    p-4
+
+                    sm:grid-cols-[88px_1fr_auto]
+                    sm:items-center
+                  "
+                >
+
+
+                  {/* PHOTO */}
+
+                  <div className="relative">
+
+                    {student.photo_url ? (
+
+                      <img
+                        src={
+                          student.photo_url
+                        }
+                        alt={
+                          `${student.full_name} profile`
+                        }
+                        className="
+                          h-24
+                          w-24
+                          rounded-2xl
+                          border
+                          border-slate-200
+                          object-cover
+                        "
+                      />
+
+                    ) : (
+
+                      <div className="
+                        grid
+                        h-24
+                        w-24
+                        place-items-center
+                        rounded-2xl
+                        bg-slate-100
+                        text-slate-400
+                      ">
+
+                        <UserRound className="
+                          h-7
+                          w-7
+                        " />
+
+                      </div>
+
+                    )}
+
+
+                    <span className="
+                      absolute
+                      -left-1
+                      -top-1
+                      grid
+                      h-6
+                      w-6
+                      place-items-center
+                      rounded-full
+                      bg-brand-950
+                      text-[10px]
+                      font-bold
+                      text-white
+                    ">
+                      {index + 1}
+                    </span>
+
+                  </div>
+
+
+                  {/* DETAILS */}
+
+                  <div className="min-w-0">
+
+                    <p className="
+                      font-bold
+                      text-slate-950
+                    ">
+                      {student.full_name}
+                    </p>
+
+
+                    <p className="
+                      mt-1
+                      text-xs
+                      font-semibold
+                      text-slate-500
+                    ">
+                      {student.usn}
+                      {' · '}
+                      Semester {student.semester}
+                    </p>
+
+
+                    <p className="
+                      mt-1
+                      break-all
+                      text-xs
+                      text-slate-500
+                    ">
+                      {student.email}
+                    </p>
+
+
+                    <p className="
+                      mt-1
+                      text-xs
+                      text-slate-500
+                    ">
+                      {student.contact_number}
+                    </p>
+
+                  </div>
+
+
+                  <StatusBadge
+                    status={
+                      student.attendance_status
+                    }
+                  />
+
+                </article>
+
+              )
+            )}
+
+          </div>
+
+        </Card>
+
+      </div>
+
+
+      {/* =====================================================
+          PAYMENT + REVIEW
+      ====================================================== */}
+
+      <div className="
+        grid
+        gap-5
+
+        lg:grid-cols-[1fr_.5fr]
+      ">
+
+
+        {/* ===================================================
+            PAYMENT
+        ==================================================== */}
+
+        <Card className="p-5">
+
+          <h2 className="section-title">
+            Payment records
+          </h2>
+
+
+          <div className="
+            mt-4
+            space-y-3
+          ">
+
+            {data.payments.length ? (
+
+              data.payments.map(
+                (
+                  payment,
+                  index
+                ) => (
+
+                  <div
+                    key={
+                      `${payment.order_id}-${index}`
+                    }
+                    className="
+                      grid
+                      gap-2
+                      rounded-2xl
+                      border
+                      border-slate-200
+                      p-4
+
+                      sm:grid-cols-4
+                    "
+                  >
+
+                    <div>
+
+                      <p className="
+                        text-xs
+                        text-slate-400
+                      ">
+                        Order ID
+                      </p>
+
+
+                      <p className="
+                        mt-1
+                        break-all
+                        text-xs
+                        font-semibold
+                      ">
+                        {payment.order_id}
+                      </p>
+
+                    </div>
+
+
+                    <div>
+
+                      <p className="
+                        text-xs
+                        text-slate-400
+                      ">
+                        Payment ID
+                      </p>
+
+
+                      <p className="
+                        mt-1
+                        break-all
+                        text-xs
+                        font-semibold
+                      ">
+                        {
+                          payment.payment_id ||
+                          'Not received'
+                        }
+                      </p>
+
+                    </div>
+
+
+                    <div>
+
+                      <p className="
+                        text-xs
+                        text-slate-400
+                      ">
+                        Amount
+                      </p>
+
+
+                      <p className="
+                        mt-1
+                        text-sm
+                        font-bold
+                      ">
+                        {
+                          formatCurrency(
+                            payment.amount_paise
+                          )
+                        }
+                      </p>
+
+                    </div>
+
+
+                    <div>
+
+                      <StatusBadge
+                        status={
+                          payment.status
+                        }
+                      />
+
+
+                      <p className="
+                        mt-1
+                        text-xs
+                        text-slate-500
+                      ">
+                        {
+                          formatDateTime(
+                            payment.paid_at
+                          )
+                        }
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                )
+              )
+
+            ) : (
+
+              <p className="
+                rounded-xl
+                bg-slate-50
+                p-4
+                text-sm
+                text-slate-500
+              ">
+                No payment linked.
+              </p>
+
+            )}
+
+          </div>
+
+        </Card>
+
+
+        {/* ===================================================
+            REVIEW
+        ==================================================== */}
+
+        <Card className="p-5">
+
+          <h2 className="section-title">
+            Review actions
+          </h2>
+
+
+          <p className="section-copy">
+            Actions are audited. Applicable registration
+            notifications are sent to the registered PED,
+            Coach and Manager.
+          </p>
+
+
+          <div className="
+            mt-5
+            space-y-2
+          ">
+
+            <Button
+              className="w-full"
+              icon={BadgeCheck}
+              disabled={
+                !canApprove
+              }
+              onClick={() =>
+                open(
+                  'APPROVE'
+                )
+              }
+            >
+              Approve & send QR
+            </Button>
+
+
+            <Button
+              className="w-full"
+              variant="accent"
+              icon={RotateCcw}
+              onClick={() =>
+                open(
+                  'REQUEST_CORRECTION'
+                )
+              }
+            >
+              Request correction
+            </Button>
+
+
+            <Button
+              className="w-full"
+              variant="danger"
+              icon={XCircle}
+              onClick={() =>
+                open(
+                  'REJECT'
+                )
+              }
+            >
+              Reject
+            </Button>
+
+
+            {[
+              'APPROVED',
+              'REJECTED',
+            ].includes(
+              data.status
+            ) ? (
+
+              <Button
+                className="w-full"
+                variant="secondary"
+                icon={RefreshCw}
+                onClick={() =>
+                  open(
+                    'REOPEN'
+                  )
+                }
+              >
+                Reopen
+              </Button>
+
+            ) : null}
+
+          </div>
+
+        </Card>
+
+      </div>
+
+
+      {/* =====================================================
+          REVIEW MODAL
+      ====================================================== */}
+
+      <Modal
+        open={
+          Boolean(
+            dialog
+          )
+        }
+        onClose={() =>
+          setDialog(
+            null
+          )
+        }
+        title={
+          dialog
+            ? humanize(
+                dialog
+              )
+            : ''
+        }
+        description="
+          Confirm the decision and provide an audit note where required.
+        "
+        size="md"
+        footer={
+          <>
+
+            <Button
+              variant="secondary"
+              onClick={() =>
+                setDialog(
+                  null
+                )
+              }
+              disabled={
+                saving
+              }
+            >
+              Cancel
+            </Button>
+
+
+            <Button
+              variant={
+                dialog ===
+                'REJECT'
+
+                  ? 'danger'
+
+                  : dialog ===
+                    'REQUEST_CORRECTION'
+
+                    ? 'accent'
+
+                    : 'primary'
+              }
+              loading={
+                saving
+              }
+              onClick={
+                submitAction
+              }
+            >
+              Confirm action
+            </Button>
+
+          </>
+        }
+      >
+
+        <Textarea
+          label="Reason / admin note"
+          value={
+            reason
+          }
+          onChange={(e) =>
+            setReason(
+              e.target.value
+            )
+          }
+          placeholder={
+            dialog ===
+            'APPROVE'
+              ? 'Optional approval note'
+              : 'Explain the decision to the registered coordinators'
+          }
+        />
+
+
+        {[
+          'REQUEST_CORRECTION',
+          'REOPEN',
+        ].includes(
+          dialog
+        ) ? (
+
+          <div className="mt-5">
+
+            <p className="field-label">
+              Fields that may be edited
+            </p>
+
+
+            <div className="
+              grid
+              grid-cols-2
+              gap-2
+            ">
+
+              {correctionOptions.map(
+                (
+                  field
+                ) => (
+
+                  <label
+                    key={
+                      field
+                    }
+                    className="
+                      flex
+                      items-center
+                      gap-2
+                      rounded-xl
+                      border
+                      border-slate-200
+                      p-3
+                      text-xs
+                      font-semibold
+                    "
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={
+                        fields.includes(
+                          field
+                        )
+                      }
+                      onChange={(e) =>
+                        setFields(
+                          (
+                            value
+                          ) =>
+                            e.target
+                              .checked
+
+                              ? [
+                                  ...value,
+                                  field,
+                                ]
+
+                              : value.filter(
+                                  (
+                                    item
+                                  ) =>
+                                    item !==
+                                    field
+                                )
+                        )
+                      }
+                    />
+
+                    {
+                      humanize(
+                        field
+                      )
+                    }
+
+                  </label>
+
+                )
+              )}
+
+            </div>
+
+          </div>
+
+        ) : null}
+
+      </Modal>
+
     </div>
-
-    <div className="grid gap-5 lg:grid-cols-[1fr_.5fr]"><Card className="p-5"><h2 className="section-title">Payment records</h2><div className="mt-4 space-y-3">{data.payments.length ? data.payments.map((payment,index) => <div key={`${payment.order_id}-${index}`} className="grid gap-2 rounded-2xl border border-slate-200 p-4 sm:grid-cols-4"><div><p className="text-xs text-slate-400">Order ID</p><p className="mt-1 break-all text-xs font-semibold">{payment.order_id}</p></div><div><p className="text-xs text-slate-400">Payment ID</p><p className="mt-1 break-all text-xs font-semibold">{payment.payment_id || 'Not received'}</p></div><div><p className="text-xs text-slate-400">Amount</p><p className="mt-1 text-sm font-bold">{formatCurrency(payment.amount_paise)}</p></div><div><StatusBadge status={payment.status} /><p className="mt-1 text-xs text-slate-500">{formatDateTime(payment.paid_at)}</p></div></div>) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No payment linked.</p>}</div></Card>
-      <Card className="p-5"><h2 className="section-title">Review actions</h2><p className="section-copy">Actions are audited and email the PED where applicable.</p><div className="mt-5 space-y-2"><Button className="w-full" icon={BadgeCheck} disabled={!canApprove} onClick={() => open('APPROVE')}>Approve & send QR</Button><Button className="w-full" variant="accent" icon={RotateCcw} onClick={() => open('REQUEST_CORRECTION')}>Request correction</Button><Button className="w-full" variant="danger" icon={XCircle} onClick={() => open('REJECT')}>Reject</Button>{['APPROVED','REJECTED'].includes(data.status) ? <Button className="w-full" variant="secondary" icon={RefreshCw} onClick={() => open('REOPEN')}>Reopen</Button> : null}</div></Card></div>
-
-    <Modal open={Boolean(dialog)} onClose={() => setDialog(null)} title={dialog ? humanize(dialog) : ''} description="Confirm the decision and provide an audit note where required." size="md" footer={<><Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>Cancel</Button><Button variant={dialog === 'REJECT' ? 'danger' : dialog === 'REQUEST_CORRECTION' ? 'accent' : 'primary'} loading={saving} onClick={submitAction}>Confirm action</Button></>}>
-      <Textarea label="Reason / admin note" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={dialog === 'APPROVE' ? 'Optional approval note' : 'Explain the decision to the PED'} />
-      {['REQUEST_CORRECTION','REOPEN'].includes(dialog) ? <div className="mt-5"><p className="field-label">Fields that may be edited</p><div className="grid grid-cols-2 gap-2">{correctionOptions.map((field) => <label key={field} className="flex items-center gap-2 rounded-xl border border-slate-200 p-3 text-xs font-semibold"><input type="checkbox" checked={fields.includes(field)} onChange={(e) => setFields((v) => e.target.checked ? [...v,field] : v.filter((x) => x !== field))} />{humanize(field)}</label>)}</div></div> : null}
-    </Modal>
-  </div>
+  )
 }

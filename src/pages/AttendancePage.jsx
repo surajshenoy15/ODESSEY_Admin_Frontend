@@ -1,27 +1,626 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, History, ScanLine, Search, ShieldAlert, UserCheck, UserRound, UserX } from 'lucide-react'
+import {
+  CheckCircle2,
+  History,
+  ScanLine,
+  Search,
+  ShieldAlert,
+  UserCheck,
+  UserRound,
+  UserX,
+} from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { apiGet, apiPost, withQuery } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
-import { Button, Card, EmptyState, ErrorState, Input, LoadingState, PageHeader, Textarea } from '../components/ui'
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+  PageHeader,
+  Textarea,
+} from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { formatDateTime } from '../utils/format'
 
 export default function AttendancePage() {
-  const { notify } = useToast(); const [params] = useSearchParams()
-  const [token, setToken] = useState(params.get('token') || ''); const [scan, setScan] = useState(null); const [marks, setMarks] = useState({}); const [notes, setNotes] = useState({}); const [gate, setGate] = useState('Main Gate'); const [confirmationNote, setConfirmationNote] = useState(''); const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const [history, setHistory] = useState([])
-  async function lookup(e, value = token) { e?.preventDefault(); if (!value.trim()) { notify('Scan or paste the QR token first.', 'warning'); return } setLoading(true); setError(''); setHistory([]); try { const result = await apiGet(withQuery('/admin/attendance/scan', { token: value.trim() })); setScan(result); setMarks(Object.fromEntries(result.students.map((s) => [s.id, s.attendance_status === 'ABSENT' ? false : true]))); setNotes(Object.fromEntries(result.students.map((s) => [s.id, s.attendance_note || '']))) } catch (err) { setScan(null); setError(err.message) } finally { setLoading(false) } }
-  useEffect(() => { const incoming = params.get('token'); if (incoming) { setToken(incoming); lookup(null, incoming) } }, [])
-  const counts = useMemo(() => scan ? { present: scan.students.filter((s) => marks[s.id]).length, absent: scan.students.filter((s) => !marks[s.id]).length } : { present: 0, absent: 0 }, [scan, marks])
-  async function confirm() { if (!scan || scan.previous_check_in) { notify('Attendance has already been confirmed. Duplicate scans are blocked.', 'warning'); return } setSaving(true); try { const result = await apiPost(`/admin/attendance/registrations/${scan.registration_id}/confirm`, { gate: gate || null, confirmation_note: confirmationNote || null, students: scan.students.map((student) => ({ student_id: student.id, is_present: Boolean(marks[student.id]), note: notes[student.id] || null })) }); notify(result.message, 'success'); await lookup() } catch (err) { notify(err.message, err.status === 409 ? 'warning' : 'error') } finally { setSaving(false) } }
-  async function loadHistory() { try { setHistory(await apiGet(`/admin/attendance/registrations/${scan.registration_id}/history`)) } catch (err) { notify(err.message, 'error') } }
+  const { notify } = useToast()
+  const [params] = useSearchParams()
 
-  return <div className="space-y-6"><PageHeader eyebrow="Event-day operations" title="QR attendance verification" description="Scan an approved QR from any device, verify the event and profile photos, then confirm each student exactly once." />
-    <Card className="p-5"><form onSubmit={lookup} className="flex flex-col gap-3 sm:flex-row"><div className="relative flex-1"><ScanLine className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" /><input value={token} onChange={(e) => setToken(e.target.value)} className="field-control pl-10" placeholder="Paste token from QR link or scan here" aria-label="Registration QR token" autoFocus /></div><Button type="submit" icon={Search} loading={loading}>Validate QR</Button></form><p className="helper-text">The QR landing page is read-only. Attendance changes require an authenticated admin session.</p></Card>
-    {loading ? <LoadingState label="Validating QR registration" /> : error ? <Card><ErrorState message={error} onRetry={lookup} /></Card> : !scan ? <Card><EmptyState icon={ScanLine} title="Ready to scan" description="College, event, category and student profile photos will appear after validation." /></Card> : <>
-      <Card className="p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap gap-2"><StatusBadge status={scan.payment_status} /><StatusBadge status={scan.approval_status} /></div><h2 className="mt-3 text-2xl font-black text-brand-950">{scan.registration_code}</h2><p className="mt-1 text-sm text-slate-500">{scan.college_name} · {scan.event} · {scan.category}</p></div><div className={`rounded-2xl border p-4 text-sm ${scan.previous_check_in ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-brand-100 bg-brand-50 text-brand-900'}`}><p className="font-bold">{scan.previous_check_in ? 'Already checked in - duplicate confirmation disabled' : 'Ready for attendance confirmation'}</p><p className="mt-1">Previous check-in: {formatDateTime(scan.previous_check_in)}</p></div></div></Card>
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4"><div><h2 className="section-title">Student roster with profile photos</h2><p className="section-copy">Compare each participant visually before marking attendance.</p></div><div className="flex gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{counts.present} present</span><span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">{counts.absent} absent</span></div></div><div className="divide-y divide-slate-100">{scan.students.map((student) => <div key={student.id} className="grid gap-4 p-4 md:grid-cols-[88px_1fr_auto] md:items-center">{student.photo_url ? <img src={student.photo_url} alt={`${student.full_name} profile`} className="h-24 w-24 rounded-2xl border border-slate-200 object-cover" /> : <div className="grid h-24 w-24 place-items-center rounded-2xl bg-slate-100 text-slate-400"><UserRound className="h-7 w-7" /></div>}<div><p className="font-bold text-slate-950">{student.full_name}</p><p className="mt-1 text-xs text-slate-500">{student.usn} · Semester {student.semester}</p><input className="field-control mt-2" value={notes[student.id] || ''} onChange={(e) => setNotes((v) => ({ ...v, [student.id]: e.target.value }))} placeholder="Optional identity / attendance note" disabled={Boolean(scan.previous_check_in)} /></div><div className="grid grid-cols-2 gap-2"><button disabled={Boolean(scan.previous_check_in)} type="button" onClick={() => setMarks((v) => ({ ...v, [student.id]: true }))} className={`flex min-w-28 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50 ${marks[student.id] ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-500'}`}><UserCheck className="h-4 w-4" />Present</button><button disabled={Boolean(scan.previous_check_in)} type="button" onClick={() => setMarks((v) => ({ ...v, [student.id]: false }))} className={`flex min-w-28 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50 ${marks[student.id] === false ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 text-slate-500'}`}><UserX className="h-4 w-4" />Absent</button></div></div>)}</div></Card>
-        <aside className="space-y-5"><Card className="p-5"><h2 className="section-title">Confirm team entry</h2><p className="section-copy">Once saved, a second scan cannot re-confirm attendance.</p><div className="mt-4 space-y-4"><Input label="Gate / checkpoint" value={gate} onChange={(e) => setGate(e.target.value)} disabled={Boolean(scan.previous_check_in)} /><Textarea label="Confirmation note" value={confirmationNote} onChange={(e) => setConfirmationNote(e.target.value)} disabled={Boolean(scan.previous_check_in)} /><div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"><ShieldAlert className="mb-2 h-5 w-5" />Only present students become certificate-eligible unless a certificate admin explicitly adds a missed participant with a reason.</div><Button className="w-full" icon={CheckCircle2} loading={saving} disabled={Boolean(scan.previous_check_in)} onClick={confirm}>{scan.previous_check_in ? 'Attendance already confirmed' : 'Confirm attendance'}</Button><Button className="w-full" variant="secondary" icon={History} onClick={loadHistory}>View history</Button></div></Card>{history.length ? <Card className="p-5"><h2 className="section-title">Attendance history</h2><div className="mt-4 max-h-80 space-y-2 overflow-auto">{history.map((row) => <div key={row.id} className="rounded-xl bg-slate-50 p-3 text-xs"><div className="flex justify-between gap-2"><strong>Version {row.version}</strong><StatusBadge status={row.is_present ? 'PRESENT' : 'ABSENT'} /></div><p className="mt-1 text-slate-500">{formatDateTime(row.created_at)} · {row.gate || 'No gate'}</p></div>)}</div></Card> : null}</aside>
-      </div></>}
-  </div>
+  const [token, setToken] = useState(params.get('token') || '')
+  const [scan, setScan] = useState(null)
+  const [marks, setMarks] = useState({})
+  const [notes, setNotes] = useState({})
+  const [gate, setGate] = useState('Main Gate')
+  const [confirmationNote, setConfirmationNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [history, setHistory] = useState([])
+
+  async function lookup(e, value = token) {
+    e?.preventDefault()
+
+    if (!value.trim()) {
+      notify('Scan or paste the QR token first.', 'warning')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setHistory([])
+
+    try {
+      const result = await apiGet(
+        withQuery('/admin/attendance/scan', {
+          token: value.trim(),
+        }),
+      )
+
+      const students = Array.isArray(result.students) ? result.students : []
+
+      setScan({
+        ...result,
+        students,
+      })
+
+      setMarks(
+        Object.fromEntries(
+          students.map((student) => [
+            student.id,
+            student.attendance_status === 'ABSENT' ? false : true,
+          ]),
+        ),
+      )
+
+      setNotes(
+        Object.fromEntries(
+          students.map((student) => [
+            student.id,
+            student.attendance_note || '',
+          ]),
+        ),
+      )
+    } catch (err) {
+      setScan(null)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const incoming = params.get('token')
+
+    if (incoming) {
+      setToken(incoming)
+      lookup(null, incoming)
+    }
+  }, [])
+
+  const counts = useMemo(() => {
+    if (!scan) {
+      return {
+        present: 0,
+        absent: 0,
+      }
+    }
+
+    return {
+      present: scan.students.filter((student) => marks[student.id]).length,
+      absent: scan.students.filter((student) => !marks[student.id]).length,
+    }
+  }, [scan, marks])
+
+  /*
+   * IMPORTANT:
+   * We intentionally resolve the coordinator only from the role-specific
+   * coordinator fields returned by /admin/attendance/scan.
+   *
+   * We DO NOT fall back to ped.name, coach_name, manager_name, etc.
+   * That prevents another coordinator's identity from accidentally being
+   * shown for a role-specific QR.
+   */
+  const coordinator = useMemo(() => {
+    if (!scan) return null
+
+    if (scan.coordinator) {
+      const role = scan.coordinator.role || null
+      const name = scan.coordinator.name || null
+
+      let label = scan.coordinator.label || null
+
+      if (!label && role === 'PED') label = 'PED'
+      if (!label && role === 'COACH') label = 'Coach'
+      if (!label && role === 'MANAGER') label = 'Manager'
+
+      if (role || name) {
+        return {
+          role,
+          label,
+          name,
+        }
+      }
+    }
+
+    if (
+      scan.coordinator_role ||
+      scan.coordinator_label ||
+      scan.coordinator_name
+    ) {
+      const role = scan.coordinator_role || null
+      const name = scan.coordinator_name || null
+
+      let label = scan.coordinator_label || null
+
+      if (!label && role === 'PED') label = 'PED'
+      if (!label && role === 'COACH') label = 'Coach'
+      if (!label && role === 'MANAGER') label = 'Manager'
+
+      return {
+        role,
+        label,
+        name,
+      }
+    }
+
+    /*
+     * Legacy registration_qr tokens deliberately return no PED/Coach/Manager
+     * identity here. They remain valid registration tokens but must never
+     * pretend to represent one specific coordinator.
+     */
+    return null
+  }, [scan])
+
+  async function confirm() {
+    if (!scan || scan.previous_check_in) {
+      notify(
+        'Attendance has already been confirmed. Duplicate scans are blocked.',
+        'warning',
+      )
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const result = await apiPost(
+        `/admin/attendance/registrations/${scan.registration_id}/confirm`,
+        {
+          gate: gate || null,
+          confirmation_note: confirmationNote || null,
+          students: scan.students.map((student) => ({
+            student_id: student.id,
+            is_present: Boolean(marks[student.id]),
+            note: notes[student.id] || null,
+          })),
+        },
+      )
+
+      notify(result.message, 'success')
+      await lookup()
+    } catch (err) {
+      notify(err.message, err.status === 409 ? 'warning' : 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function loadHistory() {
+    if (!scan) return
+
+    try {
+      setHistory(
+        await apiGet(
+          `/admin/attendance/registrations/${scan.registration_id}/history`,
+        ),
+      )
+    } catch (err) {
+      notify(err.message, 'error')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Event-day operations"
+        title="QR attendance verification"
+        description="Scan an approved coordinator QR, verify the authorised coordinator and participant photos, then confirm student attendance."
+      />
+
+      <Card className="p-5">
+        <form
+          onSubmit={lookup}
+          className="flex flex-col gap-3 sm:flex-row"
+        >
+          <div className="relative flex-1">
+            <ScanLine className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+
+            <input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="field-control pl-10"
+              placeholder="Paste token from QR link or scan here"
+              aria-label="Coordinator QR token"
+              autoFocus
+            />
+          </div>
+
+          <Button
+            type="submit"
+            icon={Search}
+            loading={loading}
+          >
+            Validate QR
+          </Button>
+        </form>
+
+        <p className="helper-text">
+          Attendance changes require an authenticated admin session.
+        </p>
+      </Card>
+
+      {loading ? (
+        <LoadingState label="Validating QR registration" />
+      ) : error ? (
+        <Card>
+          <ErrorState
+            message={error}
+            onRetry={lookup}
+          />
+        </Card>
+      ) : !scan ? (
+        <Card>
+          <EmptyState
+            icon={ScanLine}
+            title="Ready to scan"
+            description="College, event, category, authorised coordinator and student profile photos will appear after validation."
+          />
+        </Card>
+      ) : (
+        <>
+          {/* ================================================================
+              COORDINATOR / REGISTRATION VERIFICATION
+              ================================================================ */}
+          <Card className="overflow-hidden">
+            <div className="border-b border-slate-200 bg-white px-5 py-5 sm:px-7">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
+                    BNMIT ODYSSEY
+                  </p>
+
+                  <h2 className="mt-1 text-2xl font-black text-brand-950">
+                    Attendance Verification
+                  </h2>
+                </div>
+
+                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Valid Registration
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-7">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    College
+                  </p>
+
+                  <p className="mt-1 font-bold text-slate-950">
+                    {scan.college_name || '—'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Event
+                  </p>
+
+                  <p className="mt-1 font-bold text-slate-950">
+                    {scan.event || '—'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Category
+                  </p>
+
+                  <p className="mt-1 font-bold text-slate-950">
+                    {scan.category || '—'}
+                  </p>
+                </div>
+              </div>
+
+              {coordinator ? (
+                <div className="mt-5 rounded-2xl border border-brand-200 bg-brand-50 p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-brand-600">
+                    Authorised Coordinator
+                  </p>
+
+                  <div className="mt-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {coordinator.label || coordinator.role || 'Coordinator'}{' '}
+                      Name
+                    </p>
+
+                    <p className="mt-1 text-xl font-black text-brand-950">
+                      {coordinator.name || '—'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
+                    Legacy Registration QR
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-amber-900">
+                    This QR validates the registration but does not identify a
+                    specific PED, Coach or Manager.
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Registration Code
+                </p>
+
+                <p className="mt-1 text-xl font-black text-brand-950">
+                  {scan.registration_code}
+                </p>
+              </div>
+
+              <div
+                className={`mt-5 rounded-2xl border p-4 text-sm ${
+                  scan.previous_check_in
+                    ? 'border-amber-200 bg-amber-50 text-amber-900'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {scan.previous_check_in ? (
+                    <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                  )}
+
+                  <div>
+                    <p className="font-bold">
+                      {scan.previous_check_in
+                        ? 'Already checked in — duplicate confirmation disabled'
+                        : 'Registration verified — ready for attendance confirmation'}
+                    </p>
+
+                    {scan.previous_check_in ? (
+                      <p className="mt-1">
+                        Previous check-in:{' '}
+                        {formatDateTime(scan.previous_check_in)}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* ================================================================
+              STUDENT ATTENDANCE
+              ================================================================ */}
+          <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+            <Card className="overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                <div>
+                  <h2 className="section-title">
+                    Student roster with profile photos
+                  </h2>
+
+                  <p className="section-copy">
+                    Compare each registered participant visually before marking
+                    attendance.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                    {counts.present} present
+                  </span>
+
+                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+                    {counts.absent} absent
+                  </span>
+                </div>
+              </div>
+
+              {scan.students.length ? (
+                <div className="divide-y divide-slate-100">
+                  {scan.students.map((student) => (
+                    <div
+                      key={student.id}
+                      className="grid gap-4 p-4 md:grid-cols-[88px_1fr_auto] md:items-center"
+                    >
+                      {student.photo_url ? (
+                        <img
+                          src={student.photo_url}
+                          alt={`${student.full_name} profile`}
+                          className="h-24 w-24 rounded-2xl border border-slate-200 object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-24 w-24 place-items-center rounded-2xl bg-slate-100 text-slate-400">
+                          <UserRound className="h-7 w-7" />
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="font-bold text-slate-950">
+                          {student.full_name}
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {student.usn || 'No USN'} · Semester{' '}
+                          {student.semester || '—'}
+                        </p>
+
+                        <input
+                          className="field-control mt-2"
+                          value={notes[student.id] || ''}
+                          onChange={(e) =>
+                            setNotes((current) => ({
+                              ...current,
+                              [student.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Optional identity / attendance note"
+                          disabled={Boolean(scan.previous_check_in)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          disabled={Boolean(scan.previous_check_in)}
+                          type="button"
+                          onClick={() =>
+                            setMarks((current) => ({
+                              ...current,
+                              [student.id]: true,
+                            }))
+                          }
+                          className={`flex min-w-28 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50 ${
+                            marks[student.id]
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <UserCheck className="h-4 w-4" />
+                          Present
+                        </button>
+
+                        <button
+                          disabled={Boolean(scan.previous_check_in)}
+                          type="button"
+                          onClick={() =>
+                            setMarks((current) => ({
+                              ...current,
+                              [student.id]: false,
+                            }))
+                          }
+                          className={`flex min-w-28 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50 ${
+                            marks[student.id] === false
+                              ? 'border-red-300 bg-red-50 text-red-800'
+                              : 'border-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <UserX className="h-4 w-4" />
+                          Absent
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6">
+                  <EmptyState
+                    icon={UserRound}
+                    title="No students found"
+                    description="No participant roster was returned for this registration."
+                  />
+                </div>
+              )}
+            </Card>
+
+            {/* ==============================================================
+                ATTENDANCE CONFIRMATION
+                ============================================================== */}
+            <aside className="space-y-5">
+              <Card className="p-5">
+                <h2 className="section-title">Confirm team entry</h2>
+
+                <p className="section-copy">
+                  Once saved, a second scan cannot re-confirm attendance.
+                </p>
+
+                <div className="mt-4 space-y-4">
+                  <Input
+                    label="Gate / checkpoint"
+                    value={gate}
+                    onChange={(e) => setGate(e.target.value)}
+                    disabled={Boolean(scan.previous_check_in)}
+                  />
+
+                  <Textarea
+                    label="Confirmation note"
+                    value={confirmationNote}
+                    onChange={(e) => setConfirmationNote(e.target.value)}
+                    disabled={Boolean(scan.previous_check_in)}
+                  />
+
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+                    <ShieldAlert className="mb-2 h-5 w-5" />
+                    Only present students become certificate-eligible unless a
+                    certificate admin explicitly adds a missed participant with
+                    a reason.
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    icon={CheckCircle2}
+                    loading={saving}
+                    disabled={Boolean(scan.previous_check_in)}
+                    onClick={confirm}
+                  >
+                    {scan.previous_check_in
+                      ? 'Attendance already confirmed'
+                      : 'Confirm attendance'}
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    icon={History}
+                    onClick={loadHistory}
+                  >
+                    View history
+                  </Button>
+                </div>
+              </Card>
+
+              {history.length ? (
+                <Card className="p-5">
+                  <h2 className="section-title">Attendance history</h2>
+
+                  <div className="mt-4 max-h-80 space-y-2 overflow-auto">
+                    {history.map((row) => (
+                      <div
+                        key={row.id}
+                        className="rounded-xl bg-slate-50 p-3 text-xs"
+                      >
+                        <div className="flex justify-between gap-2">
+                          <strong>Version {row.version}</strong>
+
+                          <StatusBadge
+                            status={row.is_present ? 'PRESENT' : 'ABSENT'}
+                          />
+                        </div>
+
+                        <p className="mt-1 text-slate-500">
+                          {formatDateTime(row.created_at)} ·{' '}
+                          {row.gate || 'No gate'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+            </aside>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
